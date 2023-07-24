@@ -1,7 +1,8 @@
-package com.example.thecountsgame
+package com.example.thecountsgame.presentation
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import com.example.thecountsgame.R
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
