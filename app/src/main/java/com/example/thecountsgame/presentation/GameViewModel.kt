@@ -5,6 +5,7 @@ import android.os.CountDownTimer
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 import com.example.thecountsgame.R
 import com.example.thecountsgame.data.GameRepositoryImpl
 import com.example.thecountsgame.domain.entity.GameResult
@@ -14,12 +15,13 @@ import com.example.thecountsgame.domain.entity.Question
 import com.example.thecountsgame.domain.usecases.GenerateQuestionUseCase
 import com.example.thecountsgame.domain.usecases.GetGameSettingsUseCase
 
-class GameViewModel(application: Application) : AndroidViewModel(application) {
+class GameViewModel(
+    private val application: Application,
+    private val level: Level
+) : ViewModel() {
 
     private lateinit var gameSettings: GameSettings
-    private lateinit var level: Level
 
-    private val context = application
     private val repository = GameRepositoryImpl
 
     private val generateQuestionUseCase = GenerateQuestionUseCase(repository)
@@ -62,16 +64,40 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var countOfRightAnswers = 0
     private var countOfQuestions = 0
 
-    fun startGame(level: Level) {
-        getGameSettings(level)
+    init {
+        startGame()
+    }
+
+    private fun startGame() {
+        getGameSettings()
         startTimer()
         generateQuestion()
+        updateProgress()
     }
 
     fun chooseAnswer(number: Int) {
         checkAnswer(number)
         updateProgress()
         generateQuestion()
+    }
+
+    private fun updateProgress() {
+        val percent = calculatePercentOfRightAnswers()
+        _percentOfRightAnswers.value = percent
+        _progressAnswers.value = String.format(
+            application.resources.getString(R.string.progress_answers),
+            countOfRightAnswers,
+            gameSettings.minCountOfRightAnswers
+        )
+        _enoughCount.value = countOfRightAnswers >= gameSettings.minCountOfRightAnswers
+        _enoughPercent.value = percent >= gameSettings.minPercentOfRightAnswers
+    }
+
+    private fun calculatePercentOfRightAnswers(): Int {
+        if (countOfQuestions == 0) {
+            return 0
+        }
+        return ((countOfRightAnswers / countOfQuestions.toDouble()) * 100).toInt()
     }
 
     private fun checkAnswer(number: Int) {
@@ -82,35 +108,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         countOfQuestions++
     }
 
-    private fun updateProgress() {
-        val percent = calculatePercentOfRightAnswers()
-        _percentOfRightAnswers.value = percent
-        _progressAnswers.value = String().format(
-            context.resources.getString(R.string.progress_answers),
-            countOfRightAnswers,
-            gameSettings.minCountOfRightAnswers
-        )
-        _enoughCount.value = countOfRightAnswers >= gameSettings.minCountOfRightAnswers
-        _enoughPercent.value = percent >= gameSettings.minPercentOfRightAnswers
-    }
-
-    private fun calculatePercentOfRightAnswers(): Int {
-        return (countOfRightAnswers / countOfQuestions.toDouble() * 100).toInt()
-    }
-
-    private fun getGameSettings(level: Level) {
-        this.level = level
+    private fun getGameSettings() {
         this.gameSettings = getGameSettingsUseCase(level)
         _minPercent.value = gameSettings.minPercentOfRightAnswers
     }
 
-    private fun generateQuestion() {
-        _question.value = generateQuestionUseCase(gameSettings.maxSumValue)
-    }
-
     private fun startTimer() {
         timer = object : CountDownTimer(
-            gameSettings.gameTimeInSeconds * MILLIS_IN_SECONDS, MILLIS_IN_SECONDS
+            gameSettings.gameTimeInSeconds * MILLIS_IN_SECONDS,
+            MILLIS_IN_SECONDS
         ) {
             override fun onTick(millisUntilFinished: Long) {
                 _formattedTime.value = formatTime(millisUntilFinished)
@@ -119,9 +125,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             override fun onFinish() {
                 finishGame()
             }
-
         }
         timer?.start()
+    }
+
+    private fun generateQuestion() {
+        _question.value = generateQuestionUseCase(gameSettings.maxSumValue)
     }
 
     private fun formatTime(millisUntilFinished: Long): String {
@@ -146,8 +155,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
+
         private const val MILLIS_IN_SECONDS = 1000L
         private const val SECONDS_IN_MINUTES = 60
     }
-
 }
